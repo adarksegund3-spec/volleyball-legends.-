@@ -1,827 +1,1034 @@
-local _0xCCBF = game:GetService(string.char(67,111,114,101,71,117,105))
-local _0xB9F2 = game:GetService(string.char(80,108,97,121,101,114,115))
-local _0x4640 = game:GetService(string.char(72,116,116,112,83,101,114,118,105,99,101))
-local _0x7B91 = game:GetService(string.char(85,115,101,114,73,110,112,117,116,83,101,114,118,105,99,101))
-local _0x95B7 = game:GetService(string.char(87,111,114,107,115,112,97,99,101))
-local _0x78B8 = game:GetService(string.char(82,101,112,108,105,99,97,116,101,100,83,116,111,114,97,103,101))
-local _0xCCCA = game:GetService(string.char(77,97,114,107,101,116,112,108,97,99,101,83,101,114,118,105,99,101))
-local _0xE979 = game:GetService(string.char(84,119,101,101,110,83,101,114,118,105,99,101))
-local _0x8EDD = _0xB9F2.LocalPlayer
-local _0x9E12 = 82075192801584
-local _0x4ED7 = 130570516904370
-if _0xCCBF:FindFirstChild(string.char(65,107,105,114,97,72,117,98,67,117,115,116,111,109,85,73)) then
-_0xCCBF.AkiraHubCustomUI:Destroy()
-endlocal _0x5F10 =string.char(65,107,105,114,97,72,117,98,86,111,108,108,101,121,98,97,108,108,67,111,110,102,105,103,46,106,115,111,110)local _0x292B = {
-spikePower = 1, diveSpeed = 1, blockPower = 1, bumpPower = 1,
-servePower = 1, jumpPower = 1, speed = 1, setPower = 1,
-tiltPower = 1, dashPower = 1,
-hitboxEnabled = false, hitboxSize = 15,
-espEnabled = false, _0x01C1 = false,
-autoFarmNormal = false, autoInteract = false,
-autoJump = false, antiAFK = false, autoFarmFull = false,
-interactDistance = 12,
+--[[
+    SCRIPT: Akira Hub | Volleyball Legends
+    VERSÃO: v2.2 — Ultra Safe Edition
+    DESENVOLVEDOR: akira007p
+    
+    ✅ SÓ CONTÉM FUNÇÕES SEGURAS:
+    - Multipliers (atributos locais)
+    - Auto Farm (movimento do jogador)
+    - Anti-AFK (simula movimento real)
+    - Hitbox (client-side)
+    - ESP (client-side)
+    - Status (leitura apenas)
+    
+    ❌ REMOVIDO TUDO QUE PODIA DAR BAN:
+    - Invest Mastery / Ball Launcher / Vote Map
+    - Roll Style / Roll Ability
+    - Claim Quest / Daily / Level
+    - Crate Open
+]]
+
+-- ============================================
+-- 1. SERVIÇOS
+-- ============================================
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MarketplaceService = game:GetService("MarketplaceService")
+local TweenService = game:GetService("TweenService")
+
+local LocalPlayer = Players.LocalPlayer
+local RAW_LOGO_ID = 82075192801584
+local RAW_BACKGROUND_ID = 130570516904370
+
+if CoreGui:FindFirstChild("AkiraHubCustomUI") then
+    CoreGui.AkiraHubCustomUI:Destroy()
+end
+
+-- ============================================
+-- 2. CONFIG
+-- ============================================
+local CONFIG_FILE = "AkiraHubVolleyballConfig.json"
+local config = {
+    spikePower = 1, diveSpeed = 1, blockPower = 1, bumpPower = 1,
+    servePower = 1, jumpPower = 1, speed = 1, setPower = 1,
+    tiltPower = 1, dashPower = 1,
+    hitboxEnabled = false, hitboxSize = 15,
+    espEnabled = false, menuTransparent = false,
+    autoFarmNormal = false, autoInteract = false,
+    autoJump = false, antiAFK = false, autoFarmFull = false,
+    interactDistance = 12,
 }
-local function _0x1DEA()
-if isfile and isfile(_0x5F10) then
-local _0x447D, _0xCC20 = pcall(function()
-return _0x4640:JSONDecode(readfile(_0x5F10))
-end)
-if _0x447D and type(_0xCC20) ==string.char(116,97,98,108,101)then
-for k, v in pairs(_0xCC20) do _0x292B[k] = v end
+
+local function loadConfig()
+    if isfile and isfile(CONFIG_FILE) then
+        local ok, result = pcall(function()
+            return HttpService:JSONDecode(readfile(CONFIG_FILE))
+        end)
+        if ok and type(result) == "table" then
+            for k, v in pairs(result) do config[k] = v end
+        end
+    end
 end
+local function saveConfig()
+    if writefile then
+        pcall(function() writefile(CONFIG_FILE, HttpService:JSONEncode(config)) end)
+    end
 end
+loadConfig()
+
+-- ============================================
+-- 3. UTILITÁRIOS
+-- ============================================
+local U = {}
+local remoteCache = {}
+
+function U.getKnitRoot()
+    local pkgs = ReplicatedStorage:FindFirstChild("Packages")
+    if not pkgs then return nil end
+    local idx = pkgs:FindFirstChild("_Index")
+    if not idx then return nil end
+    for _, f in ipairs(idx:GetChildren()) do
+        if f.Name:find("sleitnick_knit") then return f end
+    end
+    return nil
 end
-local function _0x916A()
-if writefile then
-pcall(function() writefile(_0x5F10, _0x4640:JSONEncode(_0x292B)) end)
+
+function U.getRemote(serviceName, remoteType, remoteName)
+    local key = serviceName .. "/" .. remoteType .. "/" .. remoteName
+    local cached = remoteCache[key]
+    if cached and cached.Parent then return cached end
+    local root = U.getKnitRoot()
+    if not root then return nil end
+    local knit = root:FindFirstChild("knit")
+    local svcs = knit and knit:FindFirstChild("Services")
+    local svc = svcs and svcs:FindFirstChild(serviceName)
+    if not svc then return nil end
+    local cont = svc:FindFirstChild(remoteType)
+    if not cont then return nil end
+    local r = cont:FindFirstChild(remoteName)
+    if r then remoteCache[key] = r end
+    return r
 end
+
+function U.invoke(serviceName, remoteType, remoteName, ...)
+    local r = U.getRemote(serviceName, remoteType, remoteName)
+    if not r then return false, "Remote ausente" end
+    local args = {...}
+    local ok, res = pcall(function() return r:InvokeServer(table.unpack(args)) end)
+    return ok, res
 end
-_0x1DEA()local _0xFFDE = {}
-local _0x79E9 = {}
-function _0xFFDE.getKnitRoot()
-local _0x415E = _0x78B8:FindFirstChild(string.char(80,97,99,107,97,103,101,115))
-if not _0x415E then return nil end
-local _0xFCF2 = _0x415E:FindFirstChild(string.char(95,73,110,100,101,120))
-if not _0xFCF2 then return nil end
-for _, f in ipairs(_0xFCF2:GetChildren()) do
-if f.Name:find(string.char(115,108,101,105,116,110,105,99,107,95,107,110,105,116)) then return f end
+
+function U.notify(title, message, duration)
+    duration = duration or 4
+    local parent = CoreGui:FindFirstChild("AkiraHubCustomUI")
+    if not parent then return end
+    local N = Instance.new("Frame")
+    N.Size = UDim2.new(0, 260, 0, 65)
+    N.Position = UDim2.new(1, 270, 0.82, 0)
+    N.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+    N.BackgroundTransparency = 0.1
+    N.ZIndex = 100
+    N.Parent = parent
+
+    Instance.new("UICorner", N).CornerRadius = UDim.new(0, 8)
+    local st = Instance.new("UIStroke", N)
+    st.Color = Color3.fromRGB(80, 140, 255)
+    st.Thickness = 1.5
+
+    local ic = Instance.new("ImageLabel", N)
+    ic.Size = UDim2.new(0, 36, 0, 36)
+    ic.Position = UDim2.new(0, 10, 0.5, -18)
+    local logo = parent:FindFirstChild("LogoBtn")
+    ic.Image = logo and logo.Image or ""
+    ic.BackgroundTransparency = 1
+    ic.ZIndex = 101
+    Instance.new("UICorner", ic).CornerRadius = UDim.new(1, 0)
+
+    local t = Instance.new("TextLabel", N)
+    t.Text = title
+    t.Size = UDim2.new(1, -60, 0, 20)
+    t.Position = UDim2.new(0, 52, 0, 10)
+    t.Font = Enum.Font.GothamBold
+    t.TextColor3 = Color3.fromRGB(255, 255, 255)
+    t.TextSize = 12
+    t.TextXAlignment = Enum.TextXAlignment.Left
+    t.BackgroundTransparency = 1
+    t.ZIndex = 101
+
+    local m = Instance.new("TextLabel", N)
+    m.Text = message
+    m.Size = UDim2.new(1, -60, 0, 25)
+    m.Position = UDim2.new(0, 52, 0, 28)
+    m.Font = Enum.Font.Gotham
+    m.TextColor3 = Color3.fromRGB(200, 200, 210)
+    m.TextSize = 10
+    m.TextWrapped = true
+    m.TextXAlignment = Enum.TextXAlignment.Left
+    m.BackgroundTransparency = 1
+    m.ZIndex = 101
+
+    N:TweenPosition(UDim2.new(1, -270, 0.82, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.5, true)
+    task.delay(duration, function()
+        if N and N.Parent then
+            N:TweenPosition(UDim2.new(1, 270, 0.82, 0), Enum.EasingDirection.In, Enum.EasingStyle.Quart, 0.4, true, function()
+                N:Destroy()
+            end)
+        end
+    end)
 end
-return nil
+
+-- ============================================
+-- 4. GERENCIADOR DE CONEXÕES
+-- ============================================
+local CM = { connections = {}, loops = {} }
+
+function CM.track(conn)
+    table.insert(CM.connections, conn)
+    return conn
 end
-function _0xFFDE.getRemote(serviceName, remoteType, remoteName)
-local _0xB259 = serviceName ..string.char(47).. remoteType ..string.char(47).. remoteName
-local _0x6B98 = _0x79E9[_0xB259]
-if _0x6B98 and _0x6B98.Parent then return _0x6B98 end
-local _0x933B = _0xFFDE.getKnitRoot()
-if not _0x933B then return nil end
-local _0x7F33 = _0x933B:FindFirstChild(string.char(107,110,105,116))
-local _0x5661 = _0x7F33 and _0x7F33:FindFirstChild(string.char(83,101,114,118,105,99,101,115))
-local _0x1840 = _0x5661 and _0x5661:FindFirstChild(serviceName)
-if not _0x1840 then return nil end
-local _0x1C1C = _0x1840:FindFirstChild(remoteType)
-if not _0x1C1C then return nil end
-local _0xD24F = _0x1C1C:FindFirstChild(remoteName)
-if _0xD24F then _0x79E9[_0xB259] = _0xD24F end
-return _0xD24F
+
+function CM.startLoop(name, fn)
+    CM.stopLoop(name)
+    CM.loops[name] = task.spawn(fn)
 end
-function _0xFFDE.invoke(serviceName, remoteType, remoteName, ...)
-local _0xD24F = _0xFFDE.getRemote(serviceName, remoteType, remoteName)
-if not _0xD24F then return false,string.char(82,101,109,111,116,101,32,97,117,115,101,110,116,101)end
-local _0xCB95 = {...}
-local _0x447D, _0xA429 = pcall(function() return _0xD24F:InvokeServer(table.unpack(_0xCB95)) end)
-return _0x447D, _0xA429
+
+function CM.stopLoop(name)
+    if CM.loops[name] then
+        pcall(function() task.cancel(CM.loops[name]) end)
+        CM.loops[name] = nil
+    end
 end
-function _0xFFDE.notify(title, message, duration)
-duration = duration or 4
-local _0x2381 = _0xCCBF:FindFirstChild(string.char(65,107,105,114,97,72,117,98,67,117,115,116,111,109,85,73))
-if not _0x2381 then return end
-local _0x7D8F = Instance.new(string.char(70,114,97,109,101))
-_0x7D8F.Size = UDim2.new(0, 260, 0, 65)
-_0x7D8F.Position = UDim2.new(1, 270, 0.82, 0)
-_0x7D8F.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
-_0x7D8F.BackgroundTransparency = 0.1
-_0x7D8F.ZIndex = 100
-_0x7D8F.Parent = _0x2381
-Instance.new(string.char(85,73,67,111,114,110,101,114), _0x7D8F).CornerRadius = UDim.new(0, 8)
-local _0xCF0A = Instance.new(string.char(85,73,83,116,114,111,107,101), _0x7D8F)
-_0xCF0A.Color = Color3.fromRGB(80, 140, 255)
-_0xCF0A.Thickness = 1.5
-local _0x9234 = Instance.new(string.char(73,109,97,103,101,76,97,98,101,108), _0x7D8F)
-_0x9234.Size = UDim2.new(0, 36, 0, 36)
-_0x9234.Position = UDim2.new(0, 10, 0.5, -18)
-local _0x9A4F = _0x2381:FindFirstChild(string.char(76,111,103,111,66,116,110))
-_0x9234.Image = _0x9A4F and _0x9A4F.Image or""_0x9234.BackgroundTransparency = 1
-_0x9234.ZIndex = 101
-Instance.new(string.char(85,73,67,111,114,110,101,114), _0x9234).CornerRadius = UDim.new(1, 0)
-local _0x42D2 = Instance.new(string.char(84,101,120,116,76,97,98,101,108), _0x7D8F)
-_0x42D2.Text = title
-_0x42D2.Size = UDim2.new(1, -60, 0, 20)
-_0x42D2.Position = UDim2.new(0, 52, 0, 10)
-_0x42D2.Font = Enum.Font.GothamBold
-_0x42D2.TextColor3 = Color3.fromRGB(255, 255, 255)
-_0x42D2.TextSize = 12
-_0x42D2.TextXAlignment = Enum.TextXAlignment.Left
-_0x42D2.BackgroundTransparency = 1
-_0x42D2.ZIndex = 101
-local _0x355E = Instance.new(string.char(84,101,120,116,76,97,98,101,108), _0x7D8F)
-_0x355E.Text = message
-_0x355E.Size = UDim2.new(1, -60, 0, 25)
-_0x355E.Position = UDim2.new(0, 52, 0, 28)
-_0x355E.Font = Enum.Font.Gotham
-_0x355E.TextColor3 = Color3.fromRGB(200, 200, 210)
-_0x355E.TextSize = 10
-_0x355E.TextWrapped = true
-_0x355E.TextXAlignment = Enum.TextXAlignment.Left
-_0x355E.BackgroundTransparency = 1
-_0x355E.ZIndex = 101
-_0x7D8F:TweenPosition(UDim2.new(1, -270, 0.82, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.5, true)
-task.delay(duration, function()
-if _0x7D8F and _0x7D8F.Parent then
-_0x7D8F:TweenPosition(UDim2.new(1, 270, 0.82, 0), Enum.EasingDirection.In, Enum.EasingStyle.Quart, 0.4, true, function()
-_0x7D8F:Destroy()
-end)
+
+-- ============================================
+-- 5. MÓDULOS
+-- ============================================
+
+-- ============ BALL ============
+local Ball = {}
+
+function Ball.find()
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        if obj:IsA("Model") and obj.Name:find("CLIENT_BALL") then
+            local part = obj:FindFirstChild("Cube.001")
+                or obj:FindFirstChild("Sphere.001")
+                or obj.PrimaryPart
+                or obj:FindFirstChildWhichIsA("BasePart", true)
+            if part then return part, obj end
+        end
+    end
+    return nil, nil
 end
-end)
-endlocal _0xBB88 = { connections = {}, loops = {} }
-function _0xBB88.track(conn)
-table.insert(_0xBB88.connections, conn)
-return conn
+
+function Ball.isBallModel(obj)
+    return obj:IsA("Model") and string.find(obj.Name, "CLIENT_BALL", 1, true) ~= nil
 end
-function _0xBB88.startLoop(name, fn)
-_0xBB88.stopLoop(name)
-_0xBB88.loops[name] = task.spawn(fn)
+
+-- ============ PLAYER ============
+local P = {}
+
+function P.char() return LocalPlayer.Character end
+function P.hum() local c = P.char(); return c and c:FindFirstChildOfClass("Humanoid") end
+function P.root() local c = P.char(); return c and c:FindFirstChild("HumanoidRootPart") end
+function P.alive() local h = P.hum(); return h and h.Health > 0 end
+function P.team() return LocalPlayer.Team and LocalPlayer.Team.Name or "Nenhum" end
+function P.tool() local c = P.char(); return c and c:FindFirstChildOfClass("Tool") end
+
+function P.nearestPlayer(maxDist)
+    local myRoot = P.root()
+    if not myRoot then return nil, nil end
+    local bestD, bestP = maxDist or math.huge, nil
+    for _, pl in ipairs(Players:GetPlayers()) do
+        if pl ~= LocalPlayer and pl.Character then
+            local r = pl.Character:FindFirstChild("HumanoidRootPart")
+            if r then
+                local d = (r.Position - myRoot.Position).Magnitude
+                if d < bestD then bestD, bestP = d, pl end
+            end
+        end
+    end
+    return bestP, bestD
 end
-function _0xBB88.stopLoop(name)
-if _0xBB88.loops[name] then
-pcall(function() task.cancel(_0xBB88.loops[name]) end)
-_0xBB88.loops[name] = nil
+
+function P.countAlive()
+    local n = 0
+    for _, pl in ipairs(Players:GetPlayers()) do
+        if pl.Character then
+            local h = pl.Character:FindFirstChildOfClass("Humanoid")
+            if h and h.Health > 0 then n = n + 1 end
+        end
+    end
+    return n
 end
-endlocal _0x2EC2 = {}
-function _0x2EC2.find()
-for _, obj in ipairs(_0x95B7:GetChildren()) do
-if obj:IsA(string.char(77,111,100,101,108)) and obj.Name:find(string.char(67,76,73,69,78,84,95,66,65,76,76)) then
-local _0x4FC8 = obj:FindFirstChild(string.char(67,117,98,101,46,48,48,49))
-or obj:FindFirstChild(string.char(83,112,104,101,114,101,46,48,48,49))
-or obj.PrimaryPart
-or obj:FindFirstChildWhichIsA(string.char(66,97,115,101,80,97,114,116), true)
-if _0x4FC8 then return _0x4FC8, obj end
-end
-end
-return nil, nil
-end
-function _0x2EC2.isBallModel(obj)
-return obj:IsA(string.char(77,111,100,101,108)) and string.find(obj.Name,string.char(67,76,73,69,78,84,95,66,65,76,76), 1, true) ~= nil
-endlocal _0x7172 = {}
-function _0x7172.char() return _0x8EDD.Character end
-function _0x7172.hum() local _0xEF2A = _0x7172.char(); return _0xEF2A and _0xEF2A:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100)) end
-function _0x7172.root() local _0xEF2A = _0x7172.char(); return _0xEF2A and _0xEF2A:FindFirstChild(string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116)) end
-function _0x7172.alive() local _0xCE4D = _0x7172.hum(); return _0xCE4D and _0xCE4D.Health > 0 end
-function _0x7172.team() return _0x8EDD.Team and _0x8EDD.Team.Name orstring.char(78,101,110,104,117,109)end
-function _0x7172.tool() local _0xEF2A = _0x7172.char(); return _0xEF2A and _0xEF2A:FindFirstChildOfClass(string.char(84,111,111,108)) end
-function _0x7172.nearestPlayer(maxDist)
-local _0x9C86 = _0x7172.root()
-if not _0x9C86 then return nil, nil end
-local _0x2D42, _0xFF0E = maxDist or math.huge, nil
-for _, pl in ipairs(_0xB9F2:GetPlayers()) do
-if pl ~= _0x8EDD and pl.Character then
-local _0xD24F = pl.Character:FindFirstChild(string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116))
-if _0xD24F then
-local _0x5313 = (_0xD24F.Position - _0x9C86.Position).Magnitude
-if _0x5313 < _0x2D42 then _0x2D42, _0xFF0E = _0x5313, pl end
-end
-end
-end
-return _0xFF0E, _0x2D42
-end
-function _0x7172.countAlive()
-local _0x4E49 = 0
-for _, pl in ipairs(_0xB9F2:GetPlayers()) do
-if pl.Character then
-local _0xCE4D = pl.Character:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
-if _0xCE4D and _0xCE4D.Health > 0 then _0x4E49 = _0x4E49 + 1 end
-end
-end
-return _0x4E49
-endlocal _0x2FED = {}
-_0x2FED.map = {
-jumpPower =string.char(77,117,108,116,105,112,108,105,101,114,95,74,117,109,112,80,111,119,101,114),
-spikePower =string.char(77,117,108,116,105,112,108,105,101,114,95,83,112,105,107,101,80,111,119,101,114),
-blockPower =string.char(77,117,108,116,105,112,108,105,101,114,95,66,108,111,99,107,80,111,119,101,114),
-bumpPower =string.char(77,117,108,116,105,112,108,105,101,114,95,66,117,109,112,80,111,119,101,114),
-servePower =string.char(77,117,108,116,105,112,108,105,101,114,95,83,101,114,118,101,80,111,119,101,114),
-setPower =string.char(77,117,108,116,105,112,108,105,101,114,95,83,101,116,80,111,119,101,114),
-speed =string.char(77,117,108,116,105,112,108,105,101,114,95,83,112,101,101,100),
-diveSpeed =string.char(77,117,108,116,105,112,108,105,101,114,95,68,105,118,101,83,112,101,101,100),
-tiltPower =string.char(77,117,108,116,105,112,108,105,101,114,95,84,105,108,116,80,111,119,101,114),
-dashPower =string.char(77,117,108,116,105,112,108,105,101,114,95,68,97,115,104,80,111,119,101,114),
+
+-- ============ MULTIPLIERS ============
+local Mult = {}
+Mult.map = {
+    jumpPower = "Multiplier_JumpPower",
+    spikePower = "Multiplier_SpikePower",
+    blockPower = "Multiplier_BlockPower",
+    bumpPower = "Multiplier_BumpPower",
+    servePower = "Multiplier_ServePower",
+    setPower = "Multiplier_SetPower",
+    speed = "Multiplier_Speed",
+    diveSpeed = "Multiplier_DiveSpeed",
+    tiltPower = "Multiplier_TiltPower",
+    dashPower = "Multiplier_DashPower",
 }
-function _0x2FED.applyAll()
-for _0xB259, _0x3D0A in pairs(_0x2FED.map) do
-if _0x292B[_0xB259] then
-pcall(function() _0x8EDD:SetAttribute(_0x3D0A, _0x292B[_0xB259]) end)
+
+function Mult.applyAll()
+    for key, attr in pairs(Mult.map) do
+        if config[key] then
+            pcall(function() LocalPlayer:SetAttribute(attr, config[key]) end)
+        end
+    end
 end
+
+function Mult.set(key, value)
+    config[key] = value
+    local attr = Mult.map[key]
+    if attr then pcall(function() LocalPlayer:SetAttribute(attr, value) end) end
+    saveConfig()
 end
+
+Mult.applyAll()
+CM.track(LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    Mult.applyAll()
+end))
+
+-- ============ GAME (só o essencial, tudo seguro) ============
+local Game = {}
+
+-- Anti-AFK: simula movimento real via remote do próprio jogo
+function Game.registerMoved()
+    return U.invoke("GameService", "RF", "RegisterMoved")
 end
-function _0x2FED.set(_0xB259, value)
-_0x292B[_0xB259] = value
-local _0x3D0A = _0x2FED.map[_0xB259]
-if _0x3D0A then pcall(function() _0x8EDD:SetAttribute(_0x3D0A, value) end) end
-_0x916A()
-end
-_0x2FED.applyAll()
-_0xBB88.track(_0x8EDD.CharacterAdded:Connect(function()
-task.wait(1)
-_0x2FED.applyAll()
-end))local _0x5005 = {}function _0x5005.registerMoved()
-return _0xFFDE.invoke(string.char(71,97,109,101,83,101,114,118,105,99,101),string.char(82,70),string.char(82,101,103,105,115,116,101,114,77,111,118,101,100))
-endfunction _0x5005.joinMatch() return _0xFFDE.invoke(string.char(71,97,109,101,83,101,114,118,105,99,101),string.char(82,70),string.char(82,101,113,117,101,115,116,74,111,105,110)) end
-function _0x5005.returnLobby() return _0xFFDE.invoke(string.char(71,97,109,101,83,101,114,118,105,99,101),string.char(82,70),string.char(82,101,116,117,114,110,84,111,76,111,98,98,121)) endlocal _0xF04E = Instance.new(string.char(83,99,114,101,101,110,71,117,105))
-_0xF04E.Name =string.char(65,107,105,114,97,72,117,98,67,117,115,116,111,109,85,73)_0xF04E.ResetOnSpawn = false
-_0xF04E.Parent = _0xCCBF
-local _0x5C09 = Instance.new(string.char(73,109,97,103,101,66,117,116,116,111,110))
-_0x5C09.Name =string.char(76,111,103,111,66,116,110)_0x5C09.Size = UDim2.new(0, 50, 0, 50)
-_0x5C09.Position = UDim2.new(0.85, 0, 0.15, 0)
-_0x5C09.Image =string.char(114,98,120,97,115,115,101,116,105,100,58,47,47).. _0x9E12
-_0x5C09.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-_0x5C09.BorderSizePixel = 0
-_0x5C09.Parent = _0xF04E
-Instance.new(string.char(85,73,67,111,114,110,101,114), _0x5C09).CornerRadius = UDim.new(1, 0)
-local _0x7997 = Instance.new(string.char(85,73,83,116,114,111,107,101), _0x5C09)
-_0x7997.Color = Color3.fromRGB(80, 140, 255)
-_0x7997.Thickness = 2
+
+-- Farm loop: entra/sai (comportamento que o player faria)
+function Game.joinMatch() return U.invoke("GameService", "RF", "RequestJoin") end
+function Game.returnLobby() return U.invoke("GameService", "RF", "ReturnToLobby") end
+
+-- ============================================
+-- 6. UI FRAMEWORK
+-- ============================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AkiraHubCustomUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = CoreGui
+
+local LogoBtn = Instance.new("ImageButton")
+LogoBtn.Name = "LogoBtn"
+LogoBtn.Size = UDim2.new(0, 50, 0, 50)
+LogoBtn.Position = UDim2.new(0.85, 0, 0.15, 0)
+LogoBtn.Image = "rbxassetid://" .. RAW_LOGO_ID
+LogoBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+LogoBtn.BorderSizePixel = 0
+LogoBtn.Parent = ScreenGui
+Instance.new("UICorner", LogoBtn).CornerRadius = UDim.new(1, 0)
+local LogoStroke = Instance.new("UIStroke", LogoBtn)
+LogoStroke.Color = Color3.fromRGB(80, 140, 255)
+LogoStroke.Thickness = 2
+
 do
-local _0x46ED, _0xEB7A, _0x58A0, _0xBDA4
-_0x5C09.InputBegan:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-_0x46ED, _0x58A0, _0xBDA4 = true, input.Position, _0x5C09.Position
-input.Changed:Connect(function()
-if input.UserInputState == Enum.UserInputState.End then _0x46ED = false end
-end)
+    local drag, dIn, dStart, dPos
+    LogoBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            drag, dStart, dPos = true, input.Position, LogoBtn.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then drag = false end
+            end)
+        end
+    end)
+    LogoBtn.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dIn = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dIn and drag then
+            local delta = input.Position - dStart
+            LogoBtn.Position = UDim2.new(dPos.X.Scale, dPos.X.Offset + delta.X, dPos.Y.Scale, dPos.Y.Offset + delta.Y)
+        end
+    end)
 end
-end)
-_0x5C09.InputChanged:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-_0xEB7A = input
-end
-end)
-_0x7B91.InputChanged:Connect(function(input)
-if input == _0xEB7A and _0x46ED then
-local _0xE872 = input.Position - _0x58A0
-_0x5C09.Position = UDim2.new(_0xBDA4.X.Scale, _0xBDA4.X.Offset + _0xE872.X, _0xBDA4.Y.Scale, _0xBDA4.Y.Offset + _0xE872.Y)
-end
-end)
-end
-local _0x006D = UDim2.new(0.5, -280, 0.5, -160)
-local _0x8A5C = UDim2.new(0.5, -280, 0.5, -130)
-local _0x7FB3 = Instance.new(string.char(70,114,97,109,101))
-_0x7FB3.Name =string.char(77,97,105,110,70,114,97,109,101)_0x7FB3.Size = UDim2.new(0, 560, 0, 320)
-_0x7FB3.Position = _0x006D
-_0x7FB3.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-_0x7FB3.BackgroundTransparency = 0
-_0x7FB3.ClipsDescendants = true
-_0x7FB3.Visible = true
-_0x7FB3.Parent = _0xF04E
-Instance.new(string.char(85,73,67,111,114,110,101,114), _0x7FB3).CornerRadius = UDim.new(0, 10)
-local _0x54E9 = Instance.new(string.char(85,73,83,116,114,111,107,101), _0x7FB3)
-_0x54E9.Color = Color3.fromRGB(60, 60, 75)
-_0x54E9.Thickness = 1
-local _0x8742 = Instance.new(string.char(73,109,97,103,101,76,97,98,101,108))
-_0x8742.Name =string.char(66,97,99,107,103,114,111,117,110,100,73,109,103)_0x8742.Size = UDim2.new(1, 0, 1, 0)
-_0x8742.Image =string.char(114,98,120,97,115,115,101,116,105,100,58,47,47).. _0x4ED7
-_0x8742.BackgroundTransparency = 1
-_0x8742.ImageTransparency = 0
-_0x8742.ScaleType = Enum.ScaleType.Crop
-_0x8742.ZIndex = 1
-_0x8742.Parent = _0x7FB3
+
+local OPEN_POS = UDim2.new(0.5, -280, 0.5, -160)
+local CLOSED_POS = UDim2.new(0.5, -280, 0.5, -130)
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 560, 0, 320)
+MainFrame.Position = OPEN_POS
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+MainFrame.BackgroundTransparency = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Visible = true
+MainFrame.Parent = ScreenGui
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Color = Color3.fromRGB(60, 60, 75)
+MainStroke.Thickness = 1
+
+local BackgroundImg = Instance.new("ImageLabel")
+BackgroundImg.Name = "BackgroundImg"
+BackgroundImg.Size = UDim2.new(1, 0, 1, 0)
+BackgroundImg.Image = "rbxassetid://" .. RAW_BACKGROUND_ID
+BackgroundImg.BackgroundTransparency = 1
+BackgroundImg.ImageTransparency = 0
+BackgroundImg.ScaleType = Enum.ScaleType.Crop
+BackgroundImg.ZIndex = 1
+BackgroundImg.Parent = MainFrame
+
 task.spawn(function()
-pcall(function()
-local _0x91F7 = _0xCCCA:GetProductInfo(_0x9E12, Enum.InfoType.Asset)
-if _0x91F7 and _0x91F7.AssetTypeId == 13 and _0x91F7.AssetId then
-_0x5C09.Image =string.char(114,98,120,97,115,115,101,116,105,100,58,47,47).. tostring(_0x91F7.AssetId)
-end
-local _0x9B08 = _0xCCCA:GetProductInfo(_0x4ED7, Enum.InfoType.Asset)
-if _0x9B08 and _0x9B08.AssetTypeId == 13 and _0x9B08.AssetId then
-_0x8742.Image =string.char(114,98,120,97,115,115,101,116,105,100,58,47,47).. tostring(_0x9B08.AssetId)
-end
+    pcall(function()
+        local il = MarketplaceService:GetProductInfo(RAW_LOGO_ID, Enum.InfoType.Asset)
+        if il and il.AssetTypeId == 13 and il.AssetId then
+            LogoBtn.Image = "rbxassetid://" .. tostring(il.AssetId)
+        end
+        local ib = MarketplaceService:GetProductInfo(RAW_BACKGROUND_ID, Enum.InfoType.Asset)
+        if ib and ib.AssetTypeId == 13 and ib.AssetId then
+            BackgroundImg.Image = "rbxassetid://" .. tostring(ib.AssetId)
+        end
+    end)
 end)
-end)local _0x01C1 = _0x292B.menuTransparent or false
-local _0x8B62 = {}
-local function _0x84C9(el, normal, transparent)
-table.insert(_0x8B62, {El = el, _0x7D8F = normal, T = transparent})
+
+-- ============================================
+-- 7. TRANSPARÊNCIA
+-- ============================================
+local menuTransparent = config.menuTransparent or false
+local transpTargets = {}
+
+local function registerTransp(el, normal, transparent)
+    table.insert(transpTargets, {El = el, N = normal, T = transparent})
 end
-local function _0x1590(on)
-for _, _0x42D2 in ipairs(_0x8B62) do
-if _0x42D2.El and _0x42D2.El.Parent then
-_0x42D2.El.BackgroundTransparency = on and _0x42D2.T or _0x42D2.N
+
+local function applyTransparency(on)
+    for _, t in ipairs(transpTargets) do
+        if t.El and t.El.Parent then
+            t.El.BackgroundTransparency = on and t.T or t.N
+        end
+    end
+    if BackgroundImg and BackgroundImg.Parent then
+        BackgroundImg.ImageTransparency = on and 0.7 or 0
+    end
 end
+
+registerTransp(MainFrame, 0, 0.5)
+
+local uiVisible = true
+local animating = false
+
+local function toggleUI()
+    if animating then return end
+    animating = true
+    uiVisible = not uiVisible
+    local bgTarget = menuTransparent and 0.7 or 0
+    if uiVisible then
+        MainFrame.Visible = true
+        MainFrame.Position = CLOSED_POS
+        TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = OPEN_POS}):Play()
+        TweenService:Create(BackgroundImg, TweenInfo.new(0.3), {ImageTransparency = bgTarget}):Play()
+        TweenService:Create(MainStroke, TweenInfo.new(0.3), {Transparency = 0}):Play()
+        task.wait(0.4)
+    else
+        TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Position = CLOSED_POS}):Play()
+        TweenService:Create(BackgroundImg, TweenInfo.new(0.25), {ImageTransparency = 1}):Play()
+        TweenService:Create(MainStroke, TweenInfo.new(0.25), {Transparency = 1}):Play()
+        task.wait(0.3)
+        MainFrame.Visible = false
+    end
+    animating = false
 end
-if _0x8742 and _0x8742.Parent then
-_0x8742.ImageTransparency = on and 0.7 or 0
-end
-end
-_0x84C9(_0x7FB3, 0, 0.5)
-local _0xC01B = true
-local _0x7EBF = false
-local function _0xA260()
-if _0x7EBF then return end
-_0x7EBF = true
-_0xC01B = not _0xC01B
-local _0xD126 = _0x01C1 and 0.7 or 0
-if _0xC01B then
-_0x7FB3.Visible = true
-_0x7FB3.Position = _0x8A5C
-_0xE979:Create(_0x7FB3, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = _0x006D}):Play()
-_0xE979:Create(_0x8742, TweenInfo.new(0.3), {ImageTransparency = _0xD126}):Play()
-_0xE979:Create(_0x54E9, TweenInfo.new(0.3), {Transparency = 0}):Play()
-task.wait(0.4)
-else
-_0xE979:Create(_0x7FB3, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Position = _0x8A5C}):Play()
-_0xE979:Create(_0x8742, TweenInfo.new(0.25), {ImageTransparency = 1}):Play()
-_0xE979:Create(_0x54E9, TweenInfo.new(0.25), {Transparency = 1}):Play()
-task.wait(0.3)
-_0x7FB3.Visible = false
-end
-_0x7EBF = false
-end
-local _0x374A = Instance.new(string.char(70,114,97,109,101))
-_0x374A.Size = UDim2.new(1, 0, 0, 35)
-_0x374A.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-_0x374A.BackgroundTransparency = 0.6
-_0x374A.BorderSizePixel = 0
-_0x374A.ZIndex = 2
-_0x374A.Parent = _0x7FB3
-_0x84C9(_0x374A, 0.6, 0.9)
-local _0xA408 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
-_0xA408.Text =string.char(32,32,239,191,189,239,191,189,32,65,107,105,114,97,32,72,117,98,32,124,32,86,111,108,108,101,121,98,97,108,108,32,76,101,103,101,110,100,115)_0xA408.Size = UDim2.new(0, 300, 1, 0)
-_0xA408.Font = Enum.Font.GothamBold
-_0xA408.TextColor3 = Color3.fromRGB(255, 255, 255)
-_0xA408.TextSize = 13
-_0xA408.TextXAlignment = Enum.TextXAlignment.Left
-_0xA408.BackgroundTransparency = 1
-_0xA408.ZIndex = 3
-_0xA408.Parent = _0x374A
-local _0x56FF = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
-_0x56FF.Text =string.char(226,156,149)_0x56FF.Size = UDim2.new(0, 35, 1, 0)
-_0x56FF.Position = UDim2.new(1, -35, 0, 0)
-_0x56FF.Font = Enum.Font.GothamBold
-_0x56FF.TextColor3 = Color3.fromRGB(220, 220, 220)
-_0x56FF.TextSize = 14
-_0x56FF.BackgroundTransparency = 1
-_0x56FF.ZIndex = 3
-_0x56FF.Parent = _0x374A
-_0x56FF.MouseButton1Click:Connect(_0xA260)
-_0x5C09.MouseButton1Click:Connect(_0xA260)
+
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 35)
+TopBar.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+TopBar.BackgroundTransparency = 0.6
+TopBar.BorderSizePixel = 0
+TopBar.ZIndex = 2
+TopBar.Parent = MainFrame
+registerTransp(TopBar, 0.6, 0.9)
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Text = "  👑 Akira Hub | Volleyball Legends"
+TitleLabel.Size = UDim2.new(0, 300, 1, 0)
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 13
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.ZIndex = 3
+TitleLabel.Parent = TopBar
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Text = "✕"
+CloseBtn.Size = UDim2.new(0, 35, 1, 0)
+CloseBtn.Position = UDim2.new(1, -35, 0, 0)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
+CloseBtn.TextSize = 14
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.ZIndex = 3
+CloseBtn.Parent = TopBar
+
+CloseBtn.MouseButton1Click:Connect(toggleUI)
+LogoBtn.MouseButton1Click:Connect(toggleUI)
+
 do
-local _0x46ED, _0xEB7A, _0x58A0, _0xBDA4
-_0x374A.InputBegan:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-_0x46ED, _0x58A0, _0xBDA4 = true, input.Position, _0x7FB3.Position
+    local drag, dIn, dStart, dPos
+    TopBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            drag, dStart, dPos = true, input.Position, MainFrame.Position
+        end
+    end)
+    TopBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dIn = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dIn and drag then
+            local delta = input.Position - dStart
+            MainFrame.Position = UDim2.new(dPos.X.Scale, dPos.X.Offset + delta.X, dPos.Y.Scale, dPos.Y.Offset + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            drag = false
+        end
+    end)
 end
-end)
-_0x374A.InputChanged:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-_0xEB7A = input
+
+local SideBar = Instance.new("Frame")
+SideBar.Size = UDim2.new(0, 140, 1, -35)
+SideBar.Position = UDim2.new(0, 0, 0, 35)
+SideBar.BackgroundTransparency = 1
+SideBar.ZIndex = 2
+SideBar.Parent = MainFrame
+
+local TabContainer = Instance.new("ScrollingFrame")
+TabContainer.Size = UDim2.new(1, 0, 1, -10)
+TabContainer.Position = UDim2.new(0, 0, 0, 5)
+TabContainer.BackgroundTransparency = 1
+TabContainer.ScrollBarThickness = 2
+TabContainer.ZIndex = 2
+TabContainer.Parent = SideBar
+
+local TabLayout = Instance.new("UIListLayout", TabContainer)
+TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+TabLayout.Padding = UDim.new(0, 4)
+
+local ContentArea = Instance.new("Frame")
+ContentArea.Size = UDim2.new(1, -150, 1, -45)
+ContentArea.Position = UDim2.new(0, 145, 0, 40)
+ContentArea.BackgroundTransparency = 1
+ContentArea.ZIndex = 2
+ContentArea.Parent = MainFrame
+
+local tabs = {}
+local activeTab = nil
+
+local function createTab(name, icon)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, -10, 0, 32)
+    Btn.Position = UDim2.new(0, 5, 0, 0)
+    Btn.BackgroundTransparency = 1
+    Btn.BorderSizePixel = 0
+    Btn.Text = "  " .. (icon or "📌") .. "  " .. name
+    Btn.Font = Enum.Font.GothamMedium
+    Btn.TextColor3 = Color3.fromRGB(190, 190, 200)
+    Btn.TextSize = 13
+    Btn.TextXAlignment = Enum.TextXAlignment.Left
+    Btn.AutoButtonColor = false
+    Btn.ZIndex = 3
+    Btn.Parent = TabContainer
+
+    local Page = Instance.new("ScrollingFrame")
+    Page.Name = name .. "Page"
+    Page.Size = UDim2.new(1, 0, 1, 0)
+    Page.BackgroundTransparency = 1
+    Page.Visible = false
+    Page.ScrollBarThickness = 3
+    Page.ZIndex = 2
+    Page.Parent = ContentArea
+
+    local L = Instance.new("UIListLayout", Page)
+    L.SortOrder = Enum.SortOrder.LayoutOrder
+    L.Padding = UDim.new(0, 8)
+
+    Btn.MouseButton1Click:Connect(function()
+        for _, t in pairs(tabs) do
+            t.Page.Visible = false
+            t.Button.TextColor3 = Color3.fromRGB(190, 190, 200)
+            t.Button.Font = Enum.Font.GothamMedium
+        end
+        Page.Visible = true
+        Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        Btn.Font = Enum.Font.GothamBold
+    end)
+
+    tabs[name] = {Button = Btn, Page = Page}
+    if not activeTab then
+        activeTab = name
+        Page.Visible = true
+        Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        Btn.Font = Enum.Font.GothamBold
+    end
+    return Page
 end
-end)
-_0x7B91.InputChanged:Connect(function(input)
-if input == _0xEB7A and _0x46ED then
-local _0xE872 = input.Position - _0x58A0
-_0x7FB3.Position = UDim2.new(_0xBDA4.X.Scale, _0xBDA4.X.Offset + _0xE872.X, _0xBDA4.Y.Scale, _0xBDA4.Y.Offset + _0xE872.Y)
+
+local function addSection(parent, title)
+    local L = Instance.new("TextLabel")
+    L.Text = title
+    L.Size = UDim2.new(1, -10, 0, 20)
+    L.Font = Enum.Font.GothamBold
+    L.TextColor3 = Color3.fromRGB(255, 255, 255)
+    L.TextSize = 13
+    L.TextXAlignment = Enum.TextXAlignment.Left
+    L.BackgroundTransparency = 1
+    L.ZIndex = 3
+    L.Parent = parent
 end
-end)
-_0x7B91.InputEnded:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-_0x46ED = false
+
+local function addLabel(parent, text, height, color)
+    local L = Instance.new("TextLabel")
+    L.Text = text
+    L.Size = UDim2.new(1, -10, 0, height or 20)
+    L.Font = Enum.Font.Gotham
+    L.TextColor3 = color or Color3.fromRGB(220, 220, 230)
+    L.TextSize = 11
+    L.TextXAlignment = Enum.TextXAlignment.Left
+    L.TextYAlignment = Enum.TextYAlignment.Top
+    L.TextWrapped = true
+    L.BackgroundTransparency = 1
+    L.ZIndex = 3
+    L.Parent = parent
+    return L
 end
-end)
+
+local function addToggle(parent, title, default, callback)
+    local C = Instance.new("Frame")
+    C.Size = UDim2.new(1, -10, 0, 42)
+    C.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    C.BackgroundTransparency = 0.5
+    C.ZIndex = 3
+    C.Parent = parent
+    registerTransp(C, 0.5, 0.85)
+    Instance.new("UICorner", C).CornerRadius = UDim.new(0, 8)
+
+    local L = Instance.new("TextLabel", C)
+    L.Text = title
+    L.Size = UDim2.new(0.7, 0, 1, 0)
+    L.Position = UDim2.new(0, 10, 0, 0)
+    L.Font = Enum.Font.GothamSemibold
+    L.TextColor3 = Color3.fromRGB(240, 240, 240)
+    L.TextSize = 12
+    L.TextXAlignment = Enum.TextXAlignment.Left
+    L.BackgroundTransparency = 1
+    L.ZIndex = 4
+
+    local Btn = Instance.new("TextButton", C)
+    Btn.Size = UDim2.new(0, 42, 0, 22)
+    Btn.Position = UDim2.new(1, -50, 0.5, -11)
+    Btn.BackgroundColor3 = default and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(60, 60, 70)
+    Btn.Text = ""
+    Btn.ZIndex = 4
+    Instance.new("UICorner", Btn).CornerRadius = UDim.new(1, 0)
+
+    local Cir = Instance.new("Frame", Btn)
+    Cir.Size = UDim2.new(0, 16, 0, 16)
+    Cir.Position = default and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+    Cir.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Cir.ZIndex = 5
+    Instance.new("UICorner", Cir).CornerRadius = UDim.new(1, 0)
+
+    local state = default
+    Btn.MouseButton1Click:Connect(function()
+        state = not state
+        Btn.BackgroundColor3 = state and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(60, 60, 70)
+        Cir.Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+        callback(state)
+    end)
 end
-local _0xAF8A = Instance.new(string.char(70,114,97,109,101))
-_0xAF8A.Size = UDim2.new(0, 140, 1, -35)
-_0xAF8A.Position = UDim2.new(0, 0, 0, 35)
-_0xAF8A.BackgroundTransparency = 1
-_0xAF8A.ZIndex = 2
-_0xAF8A.Parent = _0x7FB3
-local _0x357F = Instance.new(string.char(83,99,114,111,108,108,105,110,103,70,114,97,109,101))
-_0x357F.Size = UDim2.new(1, 0, 1, -10)
-_0x357F.Position = UDim2.new(0, 0, 0, 5)
-_0x357F.BackgroundTransparency = 1
-_0x357F.ScrollBarThickness = 2
-_0x357F.ZIndex = 2
-_0x357F.Parent = _0xAF8A
-local _0x1C31 = Instance.new(string.char(85,73,76,105,115,116,76,97,121,111,117,116), _0x357F)
-_0x1C31.SortOrder = Enum.SortOrder.LayoutOrder
-_0x1C31.Padding = UDim.new(0, 4)
-local _0x5DC4 = Instance.new(string.char(70,114,97,109,101))
-_0x5DC4.Size = UDim2.new(1, -150, 1, -45)
-_0x5DC4.Position = UDim2.new(0, 145, 0, 40)
-_0x5DC4.BackgroundTransparency = 1
-_0x5DC4.ZIndex = 2
-_0x5DC4.Parent = _0x7FB3
-local _0x3485 = {}
-local _0xDD5D = nil
-local function _0x790E(name, icon)
-local _0x895F = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
-_0x895F.Size = UDim2.new(1, -10, 0, 32)
-_0x895F.Position = UDim2.new(0, 5, 0, 0)
-_0x895F.BackgroundTransparency = 1
-_0x895F.BorderSizePixel = 0
-_0x895F.Text =string.char(32,32).. (icon orstring.char(239,191,189,239,191,189)) ..string.char(32,32).. name
-_0x895F.Font = Enum.Font.GothamMedium
-_0x895F.TextColor3 = Color3.fromRGB(190, 190, 200)
-_0x895F.TextSize = 13
-_0x895F.TextXAlignment = Enum.TextXAlignment.Left
-_0x895F.AutoButtonColor = false
-_0x895F.ZIndex = 3
-_0x895F.Parent = _0x357F
-local _0xF7C5 = Instance.new(string.char(83,99,114,111,108,108,105,110,103,70,114,97,109,101))
-_0xF7C5.Name = name ..string.char(80,97,103,101)_0xF7C5.Size = UDim2.new(1, 0, 1, 0)
-_0xF7C5.BackgroundTransparency = 1
-_0xF7C5.Visible = false
-_0xF7C5.ScrollBarThickness = 3
-_0xF7C5.ZIndex = 2
-_0xF7C5.Parent = _0x5DC4
-local _0x4BAC = Instance.new(string.char(85,73,76,105,115,116,76,97,121,111,117,116), _0xF7C5)
-_0x4BAC.SortOrder = Enum.SortOrder.LayoutOrder
-_0x4BAC.Padding = UDim.new(0, 8)
-_0x895F.MouseButton1Click:Connect(function()
-for _, _0x42D2 in pairs(_0x3485) do
-_0x42D2.Page.Visible = false
-_0x42D2.Button.TextColor3 = Color3.fromRGB(190, 190, 200)
-_0x42D2.Button.Font = Enum.Font.GothamMedium
+
+local function addSlider(parent, title, min, max, default, callback)
+    local C = Instance.new("Frame")
+    C.Size = UDim2.new(1, -10, 0, 48)
+    C.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    C.BackgroundTransparency = 0.5
+    C.ZIndex = 3
+    C.Parent = parent
+    registerTransp(C, 0.5, 0.85)
+    Instance.new("UICorner", C).CornerRadius = UDim.new(0, 8)
+
+    local L = Instance.new("TextLabel", C)
+    L.Text = title
+    L.Size = UDim2.new(0.6, 0, 0, 20)
+    L.Position = UDim2.new(0, 10, 0, 4)
+    L.Font = Enum.Font.GothamSemibold
+    L.TextColor3 = Color3.fromRGB(240, 240, 240)
+    L.TextSize = 11
+    L.TextXAlignment = Enum.TextXAlignment.Left
+    L.BackgroundTransparency = 1
+    L.ZIndex = 4
+
+    local VL = Instance.new("TextLabel", C)
+    VL.Text = tostring(default)
+    VL.Size = UDim2.new(0.3, 0, 0, 20)
+    VL.Position = UDim2.new(0.7, -10, 0, 4)
+    VL.Font = Enum.Font.GothamBold
+    VL.TextColor3 = Color3.fromRGB(80, 140, 255)
+    VL.TextSize = 11
+    VL.TextXAlignment = Enum.TextXAlignment.Right
+    VL.BackgroundTransparency = 1
+    VL.ZIndex = 4
+
+    local Bar = Instance.new("Frame", C)
+    Bar.Size = UDim2.new(1, -20, 0, 6)
+    Bar.Position = UDim2.new(0, 10, 1, -14)
+    Bar.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    Bar.ZIndex = 4
+    Instance.new("UICorner", Bar).CornerRadius = UDim.new(1, 0)
+
+    local Fill = Instance.new("Frame", Bar)
+    Fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    Fill.BackgroundColor3 = Color3.fromRGB(80, 140, 255)
+    Fill.ZIndex = 5
+    Instance.new("UICorner", Fill).CornerRadius = UDim.new(1, 0)
+
+    local dragging = false
+    local function update(input)
+        local pos = math.clamp((input.Position.X - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
+        local val = math.floor((min + (max - min) * pos) * 10) / 10
+        Fill.Size = UDim2.new(pos, 0, 1, 0)
+        VL.Text = tostring(val)
+        callback(val)
+    end
+
+    Bar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            update(input)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
 end
-_0xF7C5.Visible = true
-_0x895F.TextColor3 = Color3.fromRGB(255, 255, 255)
-_0x895F.Font = Enum.Font.GothamBold
-end)
-_0x3485[name] = {Button = _0x895F, _0xF7C5 = _0xF7C5}
-if not _0xDD5D then
-_0xDD5D = name
-_0xF7C5.Visible = true
-_0x895F.TextColor3 = Color3.fromRGB(255, 255, 255)
-_0x895F.Font = Enum.Font.GothamBold
+
+local function addButton(parent, text, callback)
+    local B = Instance.new("TextButton")
+    B.Size = UDim2.new(1, -10, 0, 32)
+    B.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    B.BackgroundTransparency = 0.5
+    B.Text = text
+    B.Font = Enum.Font.GothamBold
+    B.TextColor3 = Color3.fromRGB(240, 240, 240)
+    B.TextSize = 12
+    B.ZIndex = 3
+    B.Parent = parent
+    registerTransp(B, 0.5, 0.85)
+    Instance.new("UICorner", B).CornerRadius = UDim.new(0, 6)
+    B.MouseButton1Click:Connect(callback)
 end
-return _0xF7C5
-end
-local function _0xA643(_0x2381, title)
-local _0x4BAC = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
-_0x4BAC.Text = title
-_0x4BAC.Size = UDim2.new(1, -10, 0, 20)
-_0x4BAC.Font = Enum.Font.GothamBold
-_0x4BAC.TextColor3 = Color3.fromRGB(255, 255, 255)
-_0x4BAC.TextSize = 13
-_0x4BAC.TextXAlignment = Enum.TextXAlignment.Left
-_0x4BAC.BackgroundTransparency = 1
-_0x4BAC.ZIndex = 3
-_0x4BAC.Parent = _0x2381
-end
-local function _0xD661(_0x2381, text, height, color)
-local _0x4BAC = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
-_0x4BAC.Text = text
-_0x4BAC.Size = UDim2.new(1, -10, 0, height or 20)
-_0x4BAC.Font = Enum.Font.Gotham
-_0x4BAC.TextColor3 = color or Color3.fromRGB(220, 220, 230)
-_0x4BAC.TextSize = 11
-_0x4BAC.TextXAlignment = Enum.TextXAlignment.Left
-_0x4BAC.TextYAlignment = Enum.TextYAlignment.Top
-_0x4BAC.TextWrapped = true
-_0x4BAC.BackgroundTransparency = 1
-_0x4BAC.ZIndex = 3
-_0x4BAC.Parent = _0x2381
-return _0x4BAC
-end
-local function _0xFA9C(_0x2381, title, default, callback)
-local _0xC779 = Instance.new(string.char(70,114,97,109,101))
-_0xC779.Size = UDim2.new(1, -10, 0, 42)
-_0xC779.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-_0xC779.BackgroundTransparency = 0.5
-_0xC779.ZIndex = 3
-_0xC779.Parent = _0x2381
-_0x84C9(_0xC779, 0.5, 0.85)
-Instance.new(string.char(85,73,67,111,114,110,101,114), _0xC779).CornerRadius = UDim.new(0, 8)
-local _0x4BAC = Instance.new(string.char(84,101,120,116,76,97,98,101,108), _0xC779)
-_0x4BAC.Text = title
-_0x4BAC.Size = UDim2.new(0.7, 0, 1, 0)
-_0x4BAC.Position = UDim2.new(0, 10, 0, 0)
-_0x4BAC.Font = Enum.Font.GothamSemibold
-_0x4BAC.TextColor3 = Color3.fromRGB(240, 240, 240)
-_0x4BAC.TextSize = 12
-_0x4BAC.TextXAlignment = Enum.TextXAlignment.Left
-_0x4BAC.BackgroundTransparency = 1
-_0x4BAC.ZIndex = 4
-local _0x895F = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110), _0xC779)
-_0x895F.Size = UDim2.new(0, 42, 0, 22)
-_0x895F.Position = UDim2.new(1, -50, 0.5, -11)
-_0x895F.BackgroundColor3 = default and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(60, 60, 70)
-_0x895F.Text =""_0x895F.ZIndex = 4
-Instance.new(string.char(85,73,67,111,114,110,101,114), _0x895F).CornerRadius = UDim.new(1, 0)
-local _0x83D0 = Instance.new(string.char(70,114,97,109,101), _0x895F)
-_0x83D0.Size = UDim2.new(0, 16, 0, 16)
-_0x83D0.Position = default and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
-_0x83D0.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-_0x83D0.ZIndex = 5
-Instance.new(string.char(85,73,67,111,114,110,101,114), _0x83D0).CornerRadius = UDim.new(1, 0)
-local _0x1AF6 = default
-_0x895F.MouseButton1Click:Connect(function()
-_0x1AF6 = not _0x1AF6
-_0x895F.BackgroundColor3 = _0x1AF6 and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(60, 60, 70)
-_0x83D0.Position = _0x1AF6 and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
-callback(_0x1AF6)
-end)
-end
-local function _0xDF02(_0x2381, title, min, max, default, callback)
-local _0xC779 = Instance.new(string.char(70,114,97,109,101))
-_0xC779.Size = UDim2.new(1, -10, 0, 48)
-_0xC779.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-_0xC779.BackgroundTransparency = 0.5
-_0xC779.ZIndex = 3
-_0xC779.Parent = _0x2381
-_0x84C9(_0xC779, 0.5, 0.85)
-Instance.new(string.char(85,73,67,111,114,110,101,114), _0xC779).CornerRadius = UDim.new(0, 8)
-local _0x4BAC = Instance.new(string.char(84,101,120,116,76,97,98,101,108), _0xC779)
-_0x4BAC.Text = title
-_0x4BAC.Size = UDim2.new(0.6, 0, 0, 20)
-_0x4BAC.Position = UDim2.new(0, 10, 0, 4)
-_0x4BAC.Font = Enum.Font.GothamSemibold
-_0x4BAC.TextColor3 = Color3.fromRGB(240, 240, 240)
-_0x4BAC.TextSize = 11
-_0x4BAC.TextXAlignment = Enum.TextXAlignment.Left
-_0x4BAC.BackgroundTransparency = 1
-_0x4BAC.ZIndex = 4
-local _0x1659 = Instance.new(string.char(84,101,120,116,76,97,98,101,108), _0xC779)
-_0x1659.Text = tostring(default)
-_0x1659.Size = UDim2.new(0.3, 0, 0, 20)
-_0x1659.Position = UDim2.new(0.7, -10, 0, 4)
-_0x1659.Font = Enum.Font.GothamBold
-_0x1659.TextColor3 = Color3.fromRGB(80, 140, 255)
-_0x1659.TextSize = 11
-_0x1659.TextXAlignment = Enum.TextXAlignment.Right
-_0x1659.BackgroundTransparency = 1
-_0x1659.ZIndex = 4
-local _0x900E = Instance.new(string.char(70,114,97,109,101), _0xC779)
-_0x900E.Size = UDim2.new(1, -20, 0, 6)
-_0x900E.Position = UDim2.new(0, 10, 1, -14)
-_0x900E.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-_0x900E.ZIndex = 4
-Instance.new(string.char(85,73,67,111,114,110,101,114), _0x900E).CornerRadius = UDim.new(1, 0)
-local _0x9807 = Instance.new(string.char(70,114,97,109,101), _0x900E)
-_0x9807.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-_0x9807.BackgroundColor3 = Color3.fromRGB(80, 140, 255)
-_0x9807.ZIndex = 5
-Instance.new(string.char(85,73,67,111,114,110,101,114), _0x9807).CornerRadius = UDim.new(1, 0)
-local _0x0960 = false
-local function _0xDBD5(input)
-local _0xA939 = math.clamp((input.Position.X - _0x900E.AbsolutePosition.X) / _0x900E.AbsoluteSize.X, 0, 1)
-local _0x7E3E = math.floor((min + (max - min) * _0xA939) * 10) / 10
-_0x9807.Size = UDim2.new(_0xA939, 0, 1, 0)
-_0x1659.Text = tostring(_0x7E3E)
-callback(_0x7E3E)
-end
-_0x900E.InputBegan:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-_0x0960 = true
-_0xDBD5(input)
-end
-end)
-_0x7B91.InputChanged:Connect(function(input)
-if _0x0960 and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-_0xDBD5(input)
-end
-end)
-_0x7B91.InputEnded:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-_0x0960 = false
-end
-end)
-end
-local function _0x1DB8(_0x2381, text, callback)
-local _0x8086 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
-_0x8086.Size = UDim2.new(1, -10, 0, 32)
-_0x8086.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-_0x8086.BackgroundTransparency = 0.5
-_0x8086.Text = text
-_0x8086.Font = Enum.Font.GothamBold
-_0x8086.TextColor3 = Color3.fromRGB(240, 240, 240)
-_0x8086.TextSize = 12
-_0x8086.ZIndex = 3
-_0x8086.Parent = _0x2381
-_0x84C9(_0x8086, 0.5, 0.85)
-Instance.new(string.char(85,73,67,111,114,110,101,114), _0x8086).CornerRadius = UDim.new(0, 6)
-_0x8086.MouseButton1Click:Connect(callback)
-endlocal _0xC005 = _0x790E(string.char(80,114,105,110,99,105,112,97,108),string.char(239,191,189,239,191,189))
-_0xA643(_0xC005,string.char(73,110,102,111,114,109,97,195,167,195,181,101,115))
-_0xD661(_0xC005, string.format(string.char(68,101,115,101,110,118,111,108,118,101,100,111,114,58,32,97,107,105,114,97,48,48,55,112,10,85,115,117,195,161,114,105,111,58,32,37,115,10,69,120,101,99,117,116,111,114,58,32,37,115,10,86,101,114,115,195,163,111,58,32,118,50,46,50,32,85,108,116,114,97,32,83,97,102,101,10,80,108,97,99,101,73,100,58,32,37,100),
-_0x8EDD.Name,
-identifyexecutor and identifyexecutor() orstring.char(68,101,108,116,97),
-game.PlaceId
+
+-- ============================================
+-- 8. ABAS
+-- ============================================
+
+-- ============ PRINCIPAL ============
+local Home = createTab("Principal", "🏠")
+addSection(Home, "Informações")
+addLabel(Home, string.format(
+    "Desenvolvedor: akira007p\nUsuário: %s\nExecutor: %s\nVersão: v2.2 Ultra Safe\nPlaceId: %d",
+    LocalPlayer.Name,
+    identifyexecutor and identifyexecutor() or "Delta",
+    game.PlaceId
 ), 80)
-_0xA643(_0xC005,string.char(65,112,97,114,195,170,110,99,105,97))
-_0xFA9C(_0xC005,string.char(68,101,105,120,97,114,32,109,101,110,117,32,116,114,97,110,115,112,97,114,101,110,116,101), _0x01C1, function(v)
-_0x01C1 = v
-_0x292B.menuTransparent = v
-_0x916A()
-_0x1590(v)
-_0xFFDE.notify(string.char(65,112,97,114,195,170,110,99,105,97), v andstring.char(84,114,97,110,115,112,97,114,101,110,116,101,32,79,78)orstring.char(84,114,97,110,115,112,97,114,101,110,116,101,32,79,70,70), 2)
+
+addSection(Home, "Aparência")
+addToggle(Home, "Deixar menu transparente", menuTransparent, function(v)
+    menuTransparent = v
+    config.menuTransparent = v
+    saveConfig()
+    applyTransparency(v)
+    U.notify("Aparência", v and "Transparente ON" or "Transparente OFF", 2)
 end)
-_0x1DB8(_0xC005,string.char(67,111,112,105,97,114,32,76,105,110,107,32,100,111,32,68,105,115,99,111,114,100), function()
-if setclipboard then
-setclipboard(string.char(104,116,116,112,115,58,47,47,100,105,115,99,111,114,100,46,103,103,47,68,80,54,57,121,69,72,87,122))
-_0xFFDE.notify(string.char(68,105,115,99,111,114,100),string.char(76,105,110,107,32,99,111,112,105,97,100,111,33), 2)
-end
-end)local _0x0D5D = _0x790E(string.char(65,117,116,111,32,70,97,114,109),string.char(226,154,161))
-_0xA643(_0x0D5D,string.char(70,97,114,109,32,65,117,116,111,109,195,161,116,105,99,111))
-_0xFA9C(_0x0D5D,string.char(65,117,116,111,32,70,97,114,109,32,40,115,101,103,117,105,114,32,98,111,108,97,41), _0x292B.autoFarmNormal, function(v)
-_0x292B.autoFarmNormal = v; _0x916A()
-if v then
-_0xBB88.startLoop(string.char(97,117,116,111,70,97,114,109), function()
-while _0x292B.autoFarmNormal do
-task.wait(0.15)
-local _0x97C8, _0x933B = _0x7172.hum(), _0x7172.root()
-if _0x97C8 and _0x933B then
-local _0xF373 = _0x2EC2.find()
-if _0xF373 then
-_0x97C8:MoveTo(_0xF373.Position)
-if _0x292B.autoInteract then
-local _0x5313 = (_0xF373.Position - _0x933B.Position).Magnitude
-if _0x5313 < (_0x292B.interactDistance or 12) then
-local _0xD24F = _0xFFDE.getRemote(string.char(66,97,108,108,83,101,114,118,105,99,101),string.char(82,70),string.char(73,110,116,101,114,97,99,116))
-if _0xD24F then pcall(function() _0xD24F:InvokeServer() end) end
-end
-end
-end
-end
-end
+
+addButton(Home, "Copiar Link do Discord", function()
+    if setclipboard then
+        setclipboard("https://discord.gg/DP69yEHWz")
+        U.notify("Discord", "Link copiado!", 2)
+    end
 end)
-else
-_0xBB88.stopLoop(string.char(97,117,116,111,70,97,114,109))
-end
+
+-- ============ AUTO FARM ============
+local Farm = createTab("Auto Farm", "⚡")
+addSection(Farm, "Farm Automático")
+
+addToggle(Farm, "Auto Farm (seguir bola)", config.autoFarmNormal, function(v)
+    config.autoFarmNormal = v; saveConfig()
+    if v then
+        CM.startLoop("autoFarm", function()
+            while config.autoFarmNormal do
+                task.wait(0.15)
+                local hum, root = P.hum(), P.root()
+                if hum and root then
+                    local bp = Ball.find()
+                    if bp then
+                        hum:MoveTo(bp.Position)
+                        if config.autoInteract then
+                            local d = (bp.Position - root.Position).Magnitude
+                            if d < (config.interactDistance or 12) then
+                                local r = U.getRemote("BallService", "RF", "Interact")
+                                if r then pcall(function() r:InvokeServer() end) end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    else
+        CM.stopLoop("autoFarm")
+    end
 end)
-_0xFA9C(_0x0D5D,string.char(239,191,189,239,191,189,32,65,117,116,111,32,73,110,116,101,114,97,99,116,32,40,98,97,116,101,114,41), _0x292B.autoInteract, function(v)
-_0x292B.autoInteract = v; _0x916A()
+
+addToggle(Farm, "🎯 Auto Interact (bater)", config.autoInteract, function(v)
+    config.autoInteract = v; saveConfig()
 end)
-_0xA643(_0x0D5D,string.char(70,97,114,109,32,67,111,109,112,108,101,116,111))
-_0xFA9C(_0x0D5D,string.char(239,191,189,239,191,189,32,76,111,111,112,58,32,69,110,116,114,97,114,32,226,134,146,32,74,111,103,97,114,32,226,134,146,32,76,111,98,98,121), _0x292B.autoFarmFull, function(v)
-_0x292B.autoFarmFull = v; _0x916A()
-if v then
-_0xFFDE.notify(string.char(70,97,114,109,32,67,111,109,112,108,101,116,111),string.char(76,111,111,112,32,105,110,105,99,105,97,100,111), 2)
-_0xBB88.startLoop(string.char(102,97,114,109,76,111,111,112), function()
-while _0x292B.autoFarmFull do
-_0x5005.joinMatch()
-task.wait(45)
-if not _0x292B.autoFarmFull then break end
-_0x5005.returnLobby()
-task.wait(15)
-end
+
+addSection(Farm, "Farm Completo")
+addToggle(Farm, "🔄 Loop: Entrar → Jogar → Lobby", config.autoFarmFull, function(v)
+    config.autoFarmFull = v; saveConfig()
+    if v then
+        U.notify("Farm Completo", "Loop iniciado", 2)
+        CM.startLoop("farmLoop", function()
+            while config.autoFarmFull do
+                Game.joinMatch()
+                task.wait(45)
+                if not config.autoFarmFull then break end
+                Game.returnLobby()
+                task.wait(15)
+            end
+        end)
+    else
+        CM.stopLoop("farmLoop")
+        U.notify("Farm Completo", "Loop parado", 2)
+    end
 end)
-else
-_0xBB88.stopLoop(string.char(102,97,114,109,76,111,111,112))
-_0xFFDE.notify(string.char(70,97,114,109,32,67,111,109,112,108,101,116,111),string.char(76,111,111,112,32,112,97,114,97,100,111), 2)
-end
+
+addButton(Farm, "▶ Entrar em Partida Agora", function()
+    local ok = Game.joinMatch()
+    U.notify("Partida", ok and "Entrando..." or "Remote não encontrado", 2)
 end)
-_0x1DB8(_0x0D5D,string.char(226,150,182,32,69,110,116,114,97,114,32,101,109,32,80,97,114,116,105,100,97,32,65,103,111,114,97), function()
-local _0x447D = _0x5005.joinMatch()
-_0xFFDE.notify(string.char(80,97,114,116,105,100,97), _0x447D andstring.char(69,110,116,114,97,110,100,111,46,46,46)orstring.char(82,101,109,111,116,101,32,110,195,163,111,32,101,110,99,111,110,116,114,97,100,111), 2)
+
+addButton(Farm, "🏠 Voltar ao Lobby", function()
+    local ok = Game.returnLobby()
+    U.notify("Lobby", ok and "Voltando..." or "Remote não encontrado", 2)
 end)
-_0x1DB8(_0x0D5D,string.char(239,191,189,239,191,189,32,86,111,108,116,97,114,32,97,111,32,76,111,98,98,121), function()
-local _0x447D = _0x5005.returnLobby()
-_0xFFDE.notify(string.char(76,111,98,98,121), _0x447D andstring.char(86,111,108,116,97,110,100,111,46,46,46)orstring.char(82,101,109,111,116,101,32,110,195,163,111,32,101,110,99,111,110,116,114,97,100,111), 2)
+
+addSection(Farm, "Anti-AFK")
+addToggle(Farm, "🔋 Anti-AFK (RegisterMoved)", config.antiAFK, function(v)
+    config.antiAFK = v; saveConfig()
+    if v then
+        CM.startLoop("antiAFK", function()
+            while config.antiAFK do
+                task.wait(20)
+                Game.registerMoved()
+            end
+        end)
+    else
+        CM.stopLoop("antiAFK")
+    end
 end)
-_0xA643(_0x0D5D,string.char(65,110,116,105,45,65,70,75))
-_0xFA9C(_0x0D5D,string.char(239,191,189,239,191,189,32,65,110,116,105,45,65,70,75,32,40,82,101,103,105,115,116,101,114,77,111,118,101,100,41), _0x292B.antiAFK, function(v)
-_0x292B.antiAFK = v; _0x916A()
-if v then
-_0xBB88.startLoop(string.char(97,110,116,105,65,70,75), function()
-while _0x292B.antiAFK do
-task.wait(20)
-_0x5005.registerMoved()
+
+-- ============ HITBOX ============
+local Hitbox = createTab("Hitbox", "🎯")
+addSection(Hitbox, "Hitbox da Bola")
+
+local hitboxes = {}
+
+local function removeHitbox(model)
+    if hitboxes[model] and hitboxes[model].Parent then hitboxes[model]:Destroy() end
+    hitboxes[model] = nil
 end
+
+local function createHitbox(model)
+    if not config.hitboxEnabled or not model or not model.Parent then return end
+    local part = model:FindFirstChild("Cube.001")
+        or model:FindFirstChild("Sphere.001")
+        or model.PrimaryPart
+        or model:FindFirstChildWhichIsA("BasePart", true)
+    if not part then return end
+    removeHitbox(model)
+
+    local hb = Instance.new("Part")
+    hb.Name = "AkiraHitbox"
+    hb.Shape = Enum.PartType.Ball
+    hb.Size = Vector3.new(config.hitboxSize, config.hitboxSize, config.hitboxSize)
+    hb.CFrame = part.CFrame
+    hb.Color = Color3.fromRGB(50, 255, 100)
+    hb.Material = Enum.Material.ForceField
+    hb.Transparency = 0.65
+    hb.CanCollide = false
+    hb.Massless = true
+    hb.Parent = model
+
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = part
+    weld.Part1 = hb
+    weld.Parent = hb
+
+    hitboxes[model] = hb
+end
+
+addToggle(Hitbox, "Hitbox Aumentada", config.hitboxEnabled, function(v)
+    config.hitboxEnabled = v; saveConfig()
+    if v then
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if Ball.isBallModel(obj) then createHitbox(obj) end
+        end
+    else
+        for m, _ in pairs(hitboxes) do removeHitbox(m) end
+    end
 end)
-else
-_0xBB88.stopLoop(string.char(97,110,116,105,65,70,75))
-end
-end)local _0xA7AC = _0x790E(string.char(72,105,116,98,111,120),string.char(239,191,189,239,191,189))
-_0xA643(_0xA7AC,string.char(72,105,116,98,111,120,32,100,97,32,66,111,108,97))
-local _0x5F3C = {}
-local function _0xA6BD(model)
-if _0x5F3C[model] and _0x5F3C[model].Parent then _0x5F3C[model]:Destroy() end
-_0x5F3C[model] = nil
-end
-local function _0x57C0(model)
-if not _0x292B.hitboxEnabled or not model or not model.Parent then return end
-local _0x4FC8 = model:FindFirstChild(string.char(67,117,98,101,46,48,48,49))
-or model:FindFirstChild(string.char(83,112,104,101,114,101,46,48,48,49))
-or model.PrimaryPart
-or model:FindFirstChildWhichIsA(string.char(66,97,115,101,80,97,114,116), true)
-if not _0x4FC8 then return end
-_0xA6BD(model)
-local _0x641F = Instance.new(string.char(80,97,114,116))
-_0x641F.Name =string.char(65,107,105,114,97,72,105,116,98,111,120)_0x641F.Shape = Enum.PartType.Ball
-_0x641F.Size = Vector3.new(_0x292B.hitboxSize, _0x292B.hitboxSize, _0x292B.hitboxSize)
-_0x641F.CFrame = _0x4FC8.CFrame
-_0x641F.Color = Color3.fromRGB(50, 255, 100)
-_0x641F.Material = Enum.Material.ForceField
-_0x641F.Transparency = 0.65
-_0x641F.CanCollide = false
-_0x641F.Massless = true
-_0x641F.Parent = model
-local _0x2F48 = Instance.new(string.char(87,101,108,100,67,111,110,115,116,114,97,105,110,116))
-_0x2F48.Part0 = _0x4FC8
-_0x2F48.Part1 = _0x641F
-_0x2F48.Parent = _0x641F
-_0x5F3C[model] = _0x641F
-end
-_0xFA9C(_0xA7AC,string.char(72,105,116,98,111,120,32,65,117,109,101,110,116,97,100,97), _0x292B.hitboxEnabled, function(v)
-_0x292B.hitboxEnabled = v; _0x916A()
-if v then
-for _, obj in ipairs(_0x95B7:GetChildren()) do
-if _0x2EC2.isBallModel(obj) then _0x57C0(obj) end
-end
-else
-for _0x355E, _ in pairs(_0x5F3C) do _0xA6BD(_0x355E) end
-end
+
+addSlider(Hitbox, "Tamanho da Hitbox", 6, 50, config.hitboxSize, function(v)
+    config.hitboxSize = v; saveConfig()
+    for _, hb in pairs(hitboxes) do
+        if hb and hb.Parent then
+            hb.Size = Vector3.new(v, v, v)
+        end
+    end
 end)
-_0xDF02(_0xA7AC,string.char(84,97,109,97,110,104,111,32,100,97,32,72,105,116,98,111,120), 6, 50, _0x292B.hitboxSize, function(v)
-_0x292B.hitboxSize = v; _0x916A()
-for _, _0x641F in pairs(_0x5F3C) do
-if _0x641F and _0x641F.Parent then
-_0x641F.Size = Vector3.new(v, v, v)
-end
-end
+
+CM.track(Workspace.ChildAdded:Connect(function(obj)
+    if Ball.isBallModel(obj) and config.hitboxEnabled then createHitbox(obj) end
+end))
+
+-- ============ STATUS ============
+local Status = createTab("Status", "📊")
+addSection(Status, "Multiplicadores (1.0 = Normal)")
+
+addSlider(Status, "Força de Pulo", 0.5, 5, config.jumpPower, function(v) Mult.set("jumpPower", v) end)
+addSlider(Status, "Cortada (Spike)", 0.5, 5, config.spikePower, function(v) Mult.set("spikePower", v) end)
+addSlider(Status, "Bloqueio (Block)", 0.5, 5, config.blockPower, function(v) Mult.set("blockPower", v) end)
+addSlider(Status, "Recepção (Bump)", 0.5, 5, config.bumpPower, function(v) Mult.set("bumpPower", v) end)
+addSlider(Status, "Saque (Serve)", 0.5, 5, config.servePower, function(v) Mult.set("servePower", v) end)
+addSlider(Status, "Levantamento (Set)", 0.5, 5, config.setPower, function(v) Mult.set("setPower", v) end)
+addSlider(Status, "Velocidade", 0.5, 5, config.speed, function(v) Mult.set("speed", v) end)
+addSlider(Status, "Mergulho (Dive)", 0.5, 5, config.diveSpeed, function(v) Mult.set("diveSpeed", v) end)
+addSlider(Status, "Tilt", 0.5, 5, config.tiltPower, function(v) Mult.set("tiltPower", v) end)
+addSlider(Status, "⚡ Dash", 0.5, 5, config.dashPower, function(v) Mult.set("dashPower", v) end)
+
+addSection(Status, "📡 Informações ao Vivo")
+local statusLive = addLabel(Status, "Carregando...", 140, Color3.fromRGB(180, 220, 255))
+
+CM.startLoop("statusLive", function()
+    while task.wait(0.4) do
+        if not statusLive or not statusLive.Parent then break end
+        local hum = P.hum()
+        local root = P.root()
+        local tool = P.tool()
+        local ballPart = Ball.find()
+        local nearP, nearD = P.nearestPlayer(1000)
+
+        local lines = {}
+        local function add(s) table.insert(lines, s) end
+
+        if hum then
+            add(string.format("❤ Vida: %d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth)))
+            add(string.format("🏃 WalkSpeed: %.1f", hum.WalkSpeed))
+            if hum.UseJumpPower then
+                add(string.format("🦘 JumpPower: %.1f", hum.JumpPower))
+            else
+                add(string.format("🦘 JumpHeight: %.1f", hum.JumpHeight))
+            end
+            add(string.format("📊 Estado: %s", hum:GetState().Name))
+            add(string.format("👥 Equipe: %s", P.team()))
+            add(string.format("🔧 Ferramenta: %s", tool and tool.Name or "Nenhuma"))
+        else
+            add("💀 Sem personagem")
+        end
+
+        if ballPart then
+            local myRoot = P.root()
+            if myRoot then
+                local d = (ballPart.Position - myRoot.Position).Magnitude
+                add(string.format("🏐 Bola: %.1f studs", d))
+            end
+        else
+            add("🏐 Bola: fora de jogo")
+        end
+
+        add(string.format("👥 Vivos: %d / %d", P.countAlive(), #Players:GetPlayers()))
+        if nearP and nearD then
+            add(string.format("🎯 Próximo: %s (%.0f)", nearP.Name, nearD))
+        end
+
+        add("")
+        add(string.format("⚡ Farm: %s | 🎯 Interact: %s",
+            config.autoFarmNormal and "ON" or "OFF",
+            config.autoInteract and "ON" or "OFF"))
+        add(string.format("🔄 FarmLoop: %s | 🔋 AntiAFK: %s",
+            config.autoFarmFull and "ON" or "OFF",
+            config.antiAFK and "ON" or "OFF"))
+        add(string.format("🎯 Hitbox: %s | 👁 ESP: %s",
+            config.hitboxEnabled and "ON" or "OFF",
+            config.espEnabled and "ON" or "OFF"))
+
+        statusLive.Text = table.concat(lines, "\n")
+    end
 end)
-_0xBB88.track(_0x95B7.ChildAdded:Connect(function(obj)
-if _0x2EC2.isBallModel(obj) and _0x292B.hitboxEnabled then _0x57C0(obj) end
-end))local _0x1523 = _0x790E(string.char(83,116,97,116,117,115),string.char(239,191,189,239,191,189))
-_0xA643(_0x1523,string.char(77,117,108,116,105,112,108,105,99,97,100,111,114,101,115,32,40,49,46,48,32,61,32,78,111,114,109,97,108,41))
-_0xDF02(_0x1523,string.char(70,111,114,195,167,97,32,100,101,32,80,117,108,111), 0.5, 5, _0x292B.jumpPower, function(v) _0x2FED.set(string.char(106,117,109,112,80,111,119,101,114), v) end)
-_0xDF02(_0x1523,string.char(67,111,114,116,97,100,97,32,40,83,112,105,107,101,41), 0.5, 5, _0x292B.spikePower, function(v) _0x2FED.set(string.char(115,112,105,107,101,80,111,119,101,114), v) end)
-_0xDF02(_0x1523,string.char(66,108,111,113,117,101,105,111,32,40,66,108,111,99,107,41), 0.5, 5, _0x292B.blockPower, function(v) _0x2FED.set(string.char(98,108,111,99,107,80,111,119,101,114), v) end)
-_0xDF02(_0x1523,string.char(82,101,99,101,112,195,167,195,163,111,32,40,66,117,109,112,41), 0.5, 5, _0x292B.bumpPower, function(v) _0x2FED.set(string.char(98,117,109,112,80,111,119,101,114), v) end)
-_0xDF02(_0x1523,string.char(83,97,113,117,101,32,40,83,101,114,118,101,41), 0.5, 5, _0x292B.servePower, function(v) _0x2FED.set(string.char(115,101,114,118,101,80,111,119,101,114), v) end)
-_0xDF02(_0x1523,string.char(76,101,118,97,110,116,97,109,101,110,116,111,32,40,83,101,116,41), 0.5, 5, _0x292B.setPower, function(v) _0x2FED.set(string.char(115,101,116,80,111,119,101,114), v) end)
-_0xDF02(_0x1523,string.char(86,101,108,111,99,105,100,97,100,101), 0.5, 5, _0x292B.speed, function(v) _0x2FED.set(string.char(115,112,101,101,100), v) end)
-_0xDF02(_0x1523,string.char(77,101,114,103,117,108,104,111,32,40,68,105,118,101,41), 0.5, 5, _0x292B.diveSpeed, function(v) _0x2FED.set(string.char(100,105,118,101,83,112,101,101,100), v) end)
-_0xDF02(_0x1523,string.char(84,105,108,116), 0.5, 5, _0x292B.tiltPower, function(v) _0x2FED.set(string.char(116,105,108,116,80,111,119,101,114), v) end)
-_0xDF02(_0x1523,string.char(226,154,161,32,68,97,115,104), 0.5, 5, _0x292B.dashPower, function(v) _0x2FED.set(string.char(100,97,115,104,80,111,119,101,114), v) end)
-_0xA643(_0x1523,string.char(239,191,189,239,191,189,32,73,110,102,111,114,109,97,195,167,195,181,101,115,32,97,111,32,86,105,118,111))
-local _0x99CB = _0xD661(_0x1523,string.char(67,97,114,114,101,103,97,110,100,111,46,46,46), 140, Color3.fromRGB(180, 220, 255))
-_0xBB88.startLoop(string.char(115,116,97,116,117,115,76,105,118,101), function()
-while task.wait(0.4) do
-if not _0x99CB or not _0x99CB.Parent then break end
-local _0x97C8 = _0x7172.hum()
-local _0x933B = _0x7172.root()
-local _0xF666 = _0x7172.tool()
-local _0x3B10 = _0x2EC2.find()
-local _0xA1E8, _0xC0BD = _0x7172.nearestPlayer(1000)
-local _0xC63B = {}
-local function _0x7795(s) table.insert(_0xC63B, s) end
-if _0x97C8 then
-_0x7795(string.format(string.char(226,157,164,32,86,105,100,97,58,32,37,100,32,47,32,37,100), math.floor(_0x97C8.Health), math.floor(_0x97C8.MaxHealth)))
-_0x7795(string.format(string.char(239,191,189,239,191,189,32,87,97,108,107,83,112,101,101,100,58,32,37,46,49,102), _0x97C8.WalkSpeed))
-if _0x97C8.UseJumpPower then
-_0x7795(string.format(string.char(239,191,189,239,191,189,32,74,117,109,112,80,111,119,101,114,58,32,37,46,49,102), _0x97C8.JumpPower))
-else
-_0x7795(string.format(string.char(239,191,189,239,191,189,32,74,117,109,112,72,101,105,103,104,116,58,32,37,46,49,102), _0x97C8.JumpHeight))
+
+-- ============ VISUAL ============
+local Visual = createTab("Visual", "👁️")
+addSection(Visual, "ESP da Bola")
+
+local ballESP = {}
+
+local function removeESP(model)
+    if ballESP[model] and ballESP[model].Parent then ballESP[model]:Destroy() end
+    ballESP[model] = nil
 end
-_0x7795(string.format(string.char(239,191,189,239,191,189,32,69,115,116,97,100,111,58,32,37,115), _0x97C8:GetState().Name))
-_0x7795(string.format(string.char(239,191,189,239,191,189,32,69,113,117,105,112,101,58,32,37,115), _0x7172.team()))
-_0x7795(string.format(string.char(239,191,189,239,191,189,32,70,101,114,114,97,109,101,110,116,97,58,32,37,115), _0xF666 and _0xF666.Name orstring.char(78,101,110,104,117,109,97)))
-else
-_0x7795(string.char(239,191,189,239,191,189,32,83,101,109,32,112,101,114,115,111,110,97,103,101,109))
+
+local function createESP(model)
+    if not config.espEnabled or not model or ballESP[model] then return end
+    local hl = Instance.new("Highlight")
+    hl.Name = "AkiraESP"
+    hl.Adornee = model
+    hl.FillColor = Color3.fromRGB(0, 255, 100)
+    hl.FillTransparency = 0.5
+    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+    hl.Parent = model
+    ballESP[model] = hl
 end
-if _0x3B10 then
-local _0x9C86 = _0x7172.root()
-if _0x9C86 then
-local _0x5313 = (_0x3B10.Position - _0x9C86.Position).Magnitude
-_0x7795(string.format(string.char(239,191,189,239,191,189,32,66,111,108,97,58,32,37,46,49,102,32,115,116,117,100,115), _0x5313))
-end
-else
-_0x7795(string.char(239,191,189,239,191,189,32,66,111,108,97,58,32,102,111,114,97,32,100,101,32,106,111,103,111))
-end
-_0x7795(string.format(string.char(239,191,189,239,191,189,32,86,105,118,111,115,58,32,37,100,32,47,32,37,100), _0x7172.countAlive(), #_0xB9F2:GetPlayers()))
-if _0xA1E8 and _0xC0BD then
-_0x7795(string.format(string.char(239,191,189,239,191,189,32,80,114,195,179,120,105,109,111,58,32,37,115,32,40,37,46,48,102,41), _0xA1E8.Name, _0xC0BD))
-end
-_0x7795("")
-_0x7795(string.format(string.char(226,154,161,32,70,97,114,109,58,32,37,115,32,124,32,239,191,189,239,191,189,32,73,110,116,101,114,97,99,116,58,32,37,115),
-_0x292B.autoFarmNormal andstring.char(79,78)orstring.char(79,70,70),
-_0x292B.autoInteract andstring.char(79,78)orstring.char(79,70,70)))
-_0x7795(string.format(string.char(239,191,189,239,191,189,32,70,97,114,109,76,111,111,112,58,32,37,115,32,124,32,239,191,189,239,191,189,32,65,110,116,105,65,70,75,58,32,37,115),
-_0x292B.autoFarmFull andstring.char(79,78)orstring.char(79,70,70),
-_0x292B.antiAFK andstring.char(79,78)orstring.char(79,70,70)))
-_0x7795(string.format(string.char(239,191,189,239,191,189,32,72,105,116,98,111,120,58,32,37,115,32,124,32,239,191,189,239,191,189,32,69,83,80,58,32,37,115),
-_0x292B.hitboxEnabled andstring.char(79,78)orstring.char(79,70,70),
-_0x292B.espEnabled andstring.char(79,78)orstring.char(79,70,70)))
-_0x99CB.Text = table.concat(_0xC63B,string.char(10))
-end
-end)local _0x9008 = _0x790E(string.char(86,105,115,117,97,108),string.char(239,191,189,239,191,189,239,184,143))
-_0xA643(_0x9008,string.char(69,83,80,32,100,97,32,66,111,108,97))
-local _0xB5FE = {}
-local function _0x9554(model)
-if _0xB5FE[model] and _0xB5FE[model].Parent then _0xB5FE[model]:Destroy() end
-_0xB5FE[model] = nil
-end
-local function _0x4FE4(model)
-if not _0x292B.espEnabled or not model or _0xB5FE[model] then return end
-local _0x2292 = Instance.new(string.char(72,105,103,104,108,105,103,104,116))
-_0x2292.Name =string.char(65,107,105,114,97,69,83,80)_0x2292.Adornee = model
-_0x2292.FillColor = Color3.fromRGB(0, 255, 100)
-_0x2292.FillTransparency = 0.5
-_0x2292.OutlineColor = Color3.fromRGB(255, 255, 255)
-_0x2292.Parent = model
-_0xB5FE[model] = _0x2292
-end
-_0xFA9C(_0x9008,string.char(69,83,80,32,100,97,32,66,111,108,97), _0x292B.espEnabled, function(v)
-_0x292B.espEnabled = v; _0x916A()
-if v then
-for _, obj in ipairs(_0x95B7:GetChildren()) do
-if _0x2EC2.isBallModel(obj) then _0x4FE4(obj) end
-end
-else
-for _0x355E, _ in pairs(_0xB5FE) do _0x9554(_0x355E) end
-end
+
+addToggle(Visual, "ESP da Bola", config.espEnabled, function(v)
+    config.espEnabled = v; saveConfig()
+    if v then
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if Ball.isBallModel(obj) then createESP(obj) end
+        end
+    else
+        for m, _ in pairs(ballESP) do removeESP(m) end
+    end
 end)
-_0xBB88.track(_0x95B7.ChildAdded:Connect(function(obj)
-if _0x2EC2.isBallModel(obj) and _0x292B.espEnabled then _0x4FE4(obj) end
-end))if _0x01C1 then
-task.wait(0.5)
-_0x1590(true)
-end_0xFFDE.notify(string.char(65,107,105,114,97,32,72,117,98,32,118,50,46,50),string.char(85,108,116,114,97,32,83,97,102,101,32,226,128,148,32,115,195,179,32,102,117,110,195,167,195,181,101,115,32,115,101,103,117,114,97,115,33), 5)
+
+CM.track(Workspace.ChildAdded:Connect(function(obj)
+    if Ball.isBallModel(obj) and config.espEnabled then createESP(obj) end
+end))
+
+-- ============================================
+-- APLICAR TRANSPARÊNCIA SALVA
+-- ============================================
+if menuTransparent then
+    task.wait(0.5)
+    applyTransparency(true)
+end
+
+-- ============================================
+-- NOTIFICAÇÃO INICIAL
+-- ============================================
+U.notify("Akira Hub v2.2", "Ultra Safe — só funções seguras!", 5)
